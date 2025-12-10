@@ -6,14 +6,6 @@
  * ============================================================================
  */
 
-// Konstanta Header untuk validasi struktur
-const HEADERS_V2 = {
-  PELANGGAN_ADDONS: ['Total_Spending', 'Saldo_Deposit', 'Poin_Reward', 'Status_Member', 'Hutang_Aktif'],
-  LOG_DEPOSIT: ['ID_Transaksi', 'Waktu', 'ID_Pelanggan', 'Nama_Pelanggan', 'Jenis_Mutasi', 'Nominal', 'Saldo_Awal', 'Saldo_Akhir', 'Petugas', 'Keterangan'],
-  LOG_POIN: ['ID_Transaksi', 'Waktu', 'ID_Pelanggan', 'Poin_Masuk', 'Poin_Keluar', 'Saldo_Poin', 'Keterangan'],
-  MEMBERSHIP: ['Level', 'Min_Spending', 'Diskon_Persen', 'Poin_Multiplier']
-};
-
 /**
  * TUGAS 1: Setup Database V2 (Idempotent)
  * Fungsi ini aman dijalankan berkali-kali. Dia akan mengecek struktur
@@ -71,12 +63,18 @@ function migrateCustomerData() {
   }
 
   // 1. Ambil Data Pesanan (Invoice)
-  const dataPesanan = shPesanan.getDataRange().getValues();
-  // Asumsi index kolom di Data_Pesanan (sesuaikan jika beda):
-  // Col 0: No Invoice, Col 2: ID Pelanggan, Col 4: Total, Col 5: Status
-  const IDX_INV_CUST = 2; 
-  const IDX_INV_TOTAL = 4;
-  const IDX_INV_STATUS = 5;
+  const lastRowPes = shPesanan.getLastRow();
+  const lastColPes = shPesanan.getLastColumn();
+  if (lastRowPes < 2 || lastColPes < 1) {
+    return "Error: Data pesanan kosong.";
+  }
+
+  const dataPesanan = shPesanan.getRange(1, 1, lastRowPes, lastColPes).getValues();
+  const headersPesanan = dataPesanan[0];
+  const idxMapPesanan = _mapHeaders(headersPesanan);
+  const IDX_INV_CUST = safeIdx(idxMapPesanan, 'ID_Pelanggan', 'migrateCustomerData: Data_Pesanan');
+  const IDX_INV_TOTAL = safeIdx(idxMapPesanan, 'Total', 'migrateCustomerData: Data_Pesanan');
+  const IDX_INV_STATUS = safeIdx(idxMapPesanan, 'Status', 'migrateCustomerData: Data_Pesanan');
 
   // Map untuk menyimpan total hutang per pelanggan
   let hutangMap = {};
@@ -105,7 +103,13 @@ function migrateCustomerData() {
   }
 
   // 2. Update Data Pelanggan
-  const dataPelanggan = shPelanggan.getDataRange().getValues();
+  const lastRowPel = shPelanggan.getLastRow();
+  const lastColPel = shPelanggan.getLastColumn();
+  if (lastRowPel < 2 || lastColPel < 1) {
+    return "Error: Data pelanggan kosong.";
+  }
+
+  const dataPelanggan = shPelanggan.getRange(1, 1, lastRowPel, lastColPel).getValues();
   const headers = dataPelanggan[0];
   
   // Cari Index Kolom Target (Dinamis, agar aman jika urutan berubah)
