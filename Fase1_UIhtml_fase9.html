@@ -1,0 +1,493 @@
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<style>
+    /* Paksa konten utama agar tidak tertutup sidebar kanan */
+    @media (min-width: 1024px) {
+        #main { padding-right: 340px !important; } /* Memberi ruang untuk widget kanan */
+    }
+    /* Widget Kanan Fixed */
+    #shift-widget-container {
+        position: fixed;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        width: 320px;
+        background-color: white;
+        border-left: 1px solid #e2e8f0;
+        z-index: 40;
+        display: flex;
+        flex-direction: column;
+        box-shadow: -5px 0 15px rgba(0,0,0,0.05);
+        overflow-y: auto;
+    }
+</style>
+
+<div id="shift-widget-container" class="hidden lg:flex">
+    
+    <div class="p-6 border-b border-slate-100 bg-slate-50">
+        <div class="flex items-center gap-3 mb-2">
+            <div class="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center text-white shadow-lg">
+                <span class="material-icons-round">badge</span>
+            </div>
+            <div>
+                <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Petugas Jaga</div>
+                <div class="font-bold text-slate-700 text-sm truncate w-40" id="shift-user-info">Memuat...</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="p-6 flex-1 flex flex-col gap-4">
+        
+        <div id="widget-loading" class="animate-pulse space-y-3">
+            <div class="h-4 bg-slate-200 rounded w-1/2"></div>
+            <div class="h-10 bg-slate-200 rounded w-full"></div>
+        </div>
+
+        <div id="widget-closed" class="hidden flex flex-col items-center justify-center h-full text-center gap-4">
+            <div class="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mb-2">
+                <span class="material-icons-round text-3xl">storefront</span>
+            </div>
+            <div>
+                <h3 class="font-bold text-slate-700">TOKO TUTUP</h3>
+                <p class="text-xs text-slate-400 mt-1">Silakan buka shift untuk mulai transaksi.</p>
+            </div>
+            <button onclick="openModal('modal-buka-shift')" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl shadow-md transition flex items-center justify-center gap-2">
+                <span class="material-icons-round">login</span> BUKA SHIFT
+            </button>
+        </div>
+
+        <div id="widget-open" class="hidden flex flex-col h-full">
+            
+            <div class="bg-green-50 border border-green-200 rounded-xl p-4 mb-6 flex items-center gap-3">
+                <div class="relative">
+                    <div class="w-3 h-3 bg-green-500 rounded-full animate-ping absolute"></div>
+                    <div class="w-3 h-3 bg-green-500 rounded-full relative"></div>
+                </div>
+                <div>
+                    <div class="text-xs font-bold text-green-800">SHIFT AKTIF (OPEN)</div>
+                    <div class="text-[10px] text-green-600">Sistem siap digunakan.</div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 gap-3">
+                <button onclick="openModal('modal-cash-drop')" class="flex items-center gap-3 p-4 rounded-xl border border-slate-200 hover:border-amber-400 hover:bg-amber-50 transition group text-left">
+                    <div class="w-10 h-10 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center group-hover:bg-amber-500 group-hover:text-white transition">
+                        <span class="material-icons-round">payments</span>
+                    </div>
+                    <div>
+                        <div class="font-bold text-slate-700 text-sm">Drop Kas</div>
+                        <div class="text-[10px] text-slate-400">Setor uang ke bos</div>
+                    </div>
+                </button>
+
+                <button onclick="openOpnameModal()" class="flex items-center gap-3 p-4 rounded-xl border border-slate-200 hover:border-blue-400 hover:bg-blue-50 transition group text-left">
+                    <div class="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center group-hover:bg-blue-500 group-hover:text-white transition">
+                        <span class="material-icons-round">inventory_2</span>
+                    </div>
+                    <div>
+                        <div class="font-bold text-slate-700 text-sm">Stok Opname</div>
+                        <div class="text-[10px] text-slate-400">Cek fisik barang</div>
+                    </div>
+                </button>
+            </div>
+
+            <div class="mt-auto pt-6 border-t border-slate-100">
+                <button onclick="openModal('modal-tutup-shift')" class="w-full bg-red-50 text-red-600 border border-red-200 hover:bg-red-600 hover:text-white font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2">
+                    <span class="material-icons-round">lock_clock</span> TUTUP SHIFT
+                </button>
+                <p class="text-[10px] text-slate-400 text-center mt-2">Pastikan laci kasir dihitung.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="modal-buka-shift" class="hidden fixed inset-0 bg-slate-900/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
+    <div class="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden animate-fadeIn">
+        <div class="bg-indigo-600 p-4 text-white flex justify-between items-center">
+            <h3 class="font-bold text-lg">Buka Shift Baru</h3>
+            <button onclick="closeModal('modal-buka-shift')" class="hover:bg-white/20 rounded-full p-1 transition"><span class="material-icons-round">close</span></button>
+        </div>
+        <div class="p-6 space-y-4">
+            <div>
+                <label class="block text-xs font-bold text-slate-500 mb-1">LOKASI KERJA</label>
+                <select id="inp-shift-cabang" class="inp bg-slate-50 font-bold">
+                    <option value="Karanganyar">Karanganyar</option>
+                    <option value="Paoman">Paoman</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-500 mb-1">MODAL AWAL DI LACI (RP)</label>
+                <input type="number" id="inp-modal-awal" class="inp text-lg font-mono font-bold text-indigo-700" placeholder="0">
+            </div>
+            <button id="btn-submit-open" onclick="submitOpenShift()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl shadow-lg mt-2">MULAI SHIFT</button>
+        </div>
+    </div>
+</div>
+
+<div id="modal-cash-drop" class="hidden fixed inset-0 bg-slate-900/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
+    <div class="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden">
+        <div class="bg-amber-500 p-4 text-white flex justify-between items-center">
+            <h3 class="font-bold text-lg">Setor Kas / Mutasi</h3>
+            <button onclick="closeModal('modal-cash-drop')" class="hover:bg-white/20 rounded-full p-1"><span class="material-icons-round">close</span></button>
+        </div>
+        <div class="p-6 space-y-4">
+            <div>
+                <label class="block text-xs font-bold text-slate-500 mb-1">TUJUAN SETOR</label>
+                <select id="inp-drop-tujuan" class="inp bg-slate-50">
+                    <option value="ACC0001|1111">Kas Besar (Owner/Pusat)</option>
+                    <option value="ACC0006|1121">Bank BCA</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-500 mb-1">NOMINAL (RP)</label>
+                <input type="number" id="inp-drop-nominal" class="inp text-lg font-mono font-bold text-amber-600" placeholder="0">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-500 mb-1">KETERANGAN</label>
+                <input type="text" id="inp-drop-ket" class="inp" placeholder="Contoh: Setoran shift pagi...">
+            </div>
+            <button id="btn-submit-drop" onclick="submitCashDrop()" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 rounded-xl shadow-lg mt-2">KIRIM SETORAN</button>
+        </div>
+    </div>
+</div>
+
+<div id="modal-tutup-shift" class="hidden fixed inset-0 bg-slate-900/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
+    <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div class="bg-red-600 p-4 text-white shrink-0 flex justify-between items-center">
+            <div>
+                <h3 class="font-bold text-lg flex items-center gap-2"><span class="material-icons-round">lock</span> Tutup Shift</h3>
+                <p class="text-xs text-red-100">Hitung uang fisik di laci sebelum pulang.</p>
+            </div>
+            <button onclick="closeModal('modal-tutup-shift')" class="hover:bg-white/20 rounded-full p-1"><span class="material-icons-round">close</span></button>
+        </div>
+        
+        <div class="p-4 overflow-y-auto grow bg-slate-50">
+            <div class="space-y-3" id="denomination-list"></div>
+        </div>
+
+        <div class="p-5 bg-white border-t border-slate-200 shrink-0 shadow-[0_-5px_15px_rgba(0,0,0,0.05)]">
+            <div class="flex justify-between items-end mb-4">
+                <span class="text-xs font-bold text-slate-500 uppercase">Total Fisik Dihitung</span>
+                <span id="display-total-fisik" class="text-2xl font-black text-slate-800">Rp 0</span>
+            </div>
+            
+            <div class="p-3 bg-orange-50 border border-orange-100 rounded-xl mb-4 space-y-2">
+                <div class="text-[10px] font-bold text-orange-800 uppercase mb-1">Tindak Lanjut Uang Fisik:</div>
+                <label class="flex items-center gap-3 p-2 bg-white border rounded-lg cursor-pointer hover:border-orange-300 transition">
+                    <input type="radio" name="closing_action" value="KEEP" checked class="w-4 h-4 text-orange-600">
+                    <div class="text-xs">
+                        <span class="font-bold text-slate-700 block">Biarkan di Laci</span>
+                        <span class="text-slate-400">Untuk modal shift besok.</span>
+                    </div>
+                </label>
+                <label class="flex items-center gap-3 p-2 bg-white border rounded-lg cursor-pointer hover:border-orange-300 transition">
+                    <input type="radio" name="closing_action" value="DEPOSIT" class="w-4 h-4 text-orange-600">
+                    <div class="text-xs">
+                        <span class="font-bold text-slate-700 block">Setor ke Owner/Bank</span>
+                        <span class="text-slate-400">Laci dikosongkan (0).</span>
+                    </div>
+                </label>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <button onclick="closeModal('modal-tutup-shift')" class="py-3 px-4 rounded-xl border border-slate-300 text-slate-600 font-bold hover:bg-slate-50 text-sm">Batal</button>
+                <button id="btn-submit-close" onclick="submitCloseShift()" class="py-3 px-4 rounded-xl bg-red-600 text-white font-bold shadow-lg hover:bg-red-700 flex justify-center items-center gap-2 text-sm">
+                    <span class="material-icons-round text-sm">save</span> SIMPAN & TUTUP
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="modal-opname" class="hidden fixed inset-0 bg-slate-900/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
+    <div class="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div class="bg-blue-600 p-4 text-white shrink-0 flex justify-between items-center">
+            <h3 class="font-bold text-lg flex items-center gap-2"><span class="material-icons-round">inventory</span> Stok Opname</h3>
+            <button onclick="closeModal('modal-opname')" class="hover:bg-white/20 rounded-full p-1"><span class="material-icons-round">close</span></button>
+        </div>
+        <div class="p-4 bg-blue-50 border-b border-blue-100 shrink-0 flex gap-2">
+            <select id="opname-kategori" class="inp py-2 text-sm font-bold">
+                <option value="Semua">Semua Kategori</option>
+                <option value="Chemical">Chemical</option>
+                <option value="Packaging">Packaging</option>
+                <option value="Energy">Energy</option>
+            </select>
+            <button onclick="loadOpnameData()" class="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm shadow hover:bg-blue-700">Load Data</button>
+        </div>
+        <div id="opname-loader" class="hidden p-10 flex justify-center"><span class="loader"></span></div>
+        <div id="opname-content" class="overflow-y-auto grow p-0">
+            <table class="w-full text-left border-collapse">
+                <thead class="bg-slate-100 sticky top-0 z-10 shadow-sm text-xs font-bold text-slate-500 uppercase">
+                    <tr><th class="p-3">Nama Barang</th><th class="p-3 text-right w-32">Fisik (Qty)</th></tr>
+                </thead>
+                <tbody id="opname-table-body" class="text-sm text-slate-700 divide-y divide-slate-100"></tbody>
+            </table>
+        </div>
+        <div class="p-4 bg-white border-t shrink-0">
+            <button id="btn-submit-opname" onclick="submitOpnameData()" class="w-full py-3 px-4 rounded-xl bg-blue-600 text-white font-bold shadow-lg hover:bg-blue-700 flex justify-center items-center gap-2">
+                <span class="material-icons-round">save</span> SIMPAN OPNAME
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- 1. DETEKSI TOKEN & USER OTOMATIS ---
+    let detectedToken = '';
+    let currentUserInfo = {};
+
+    // Ambil Sesi
+    const sessionRaw = localStorage.getItem('UNGU_SESSION');
+    if (sessionRaw) {
+        try {
+            const r = JSON.parse(sessionRaw);
+            if (r && r.token) {
+                detectedToken = r.token;
+                currentUserInfo = r;
+            }
+        } catch (e) { console.error(e); }
+    }
+    
+    // Fallback Global
+    if (!detectedToken && typeof USER !== 'undefined' && USER && USER.token) {
+        detectedToken = USER.token;
+    }
+
+    const USER_TOKEN = detectedToken;
+    const DENOMINATIONS = [100000, 50000, 20000, 10000, 5000, 2000, 1000, 500];
+
+    // --- INIT ---
+    document.addEventListener('DOMContentLoaded', () => {
+        if(USER_TOKEN) {
+            renderShiftWidget();
+            setupDenominationInputs();
+        }
+    });
+
+    // --- 2. FUNGSI UTAMA WIDGET (ANTI-BLANK) ---
+    function renderShiftWidget() {
+        // Elemen UI
+        const loadingEl = document.getElementById('widget-loading');
+        const openEl = document.getElementById('widget-open');
+        const closedEl = document.getElementById('widget-closed');
+        const infoEl = document.getElementById('shift-user-info');
+
+        // 1. Reset ke kondisi Loading (Sembunyikan isi dulu)
+        if(loadingEl) loadingEl.classList.remove('hidden');
+        if(openEl) openEl.classList.add('hidden');
+        if(closedEl) closedEl.classList.add('hidden');
+
+        // 2. Panggil Server
+        google.script.run
+            .withSuccessHandler((res) => {
+                // Sembunyikan Loading
+                if(loadingEl) loadingEl.classList.add('hidden');
+                
+                // Cek Status
+                if (res.status === 'success' && res.data.shift_status === 'OPEN') {
+                    // KASUS A: TOKO BUKA
+                    if(openEl) openEl.classList.remove('hidden');
+                    
+                    // Update Info User
+                    if(infoEl) infoEl.innerText = `${res.data.username} | ${res.data.active_branch}`;
+                    
+                    // Simpan state lokal
+                    localStorage.setItem('shift_status', 'OPEN');
+                    localStorage.setItem('active_branch', res.data.active_branch);
+
+                } else {
+                    // KASUS B: TOKO TUTUP (Atau User Baru/Error)
+                    // Ini adalah FALLBACK agar layar tidak blank.
+                    // Jika status 'CLOSED' atau error apapun, tampilkan menu 'TUTUP' agar user bisa Buka Shift.
+                    if(closedEl) closedEl.classList.remove('hidden');
+                    
+                    localStorage.setItem('shift_status', 'CLOSED');
+                    localStorage.removeItem('active_branch');
+                }
+            })
+            .withFailureHandler((err) => {
+                // KASUS C: ERROR KONEKSI
+                console.error("Koneksi Gagal:", err);
+                if(loadingEl) loadingEl.classList.add('hidden');
+                // Tetap tampilkan menu 'TUTUP' agar user bisa mencoba lagi
+                if(closedEl) closedEl.classList.remove('hidden');
+            })
+            .checkUserShiftStatus(USER_TOKEN);
+    }
+
+    // --- UTILS ---
+    function formatRupiah(angka) {
+        return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(angka);
+    }
+    function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+    function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+    // --- 3. LOGIKA TOMBOL ---
+
+    function submitOpenShift() {
+        const cabang = document.getElementById('inp-shift-cabang').value;
+        let modalAwal = document.getElementById('inp-modal-awal').value;
+        if (modalAwal === '') modalAwal = 0;
+
+        const btn = document.getElementById('btn-submit-open');
+        btn.innerText = "Memproses..."; btn.disabled = true;
+
+        google.script.run.withSuccessHandler((res) => {
+            btn.innerText = "MULAI SHIFT"; btn.disabled = false;
+            if (res.status === 'success') {
+                closeModal('modal-buka-shift');
+                renderShiftWidget(); // Refresh agar jadi OPEN
+                Swal.fire({title:'Berhasil', text:'Shift Dibuka', icon:'success', timer:1500, showConfirmButton:false});
+            } else {
+                Swal.fire('Gagal', res.message, 'error');
+            }
+        }).doOpenShift(USER_TOKEN, modalAwal, cabang);
+    }
+
+    function submitCashDrop() {
+        const nominal = document.getElementById('inp-drop-nominal').value;
+        const ket = document.getElementById('inp-drop-ket').value;
+        const tujuan = document.getElementById('inp-drop-tujuan').value;
+
+        if(!nominal) return Swal.fire('Eits', 'Isi nominal dulu', 'warning');
+
+        const btn = document.getElementById('btn-submit-drop');
+        btn.innerText = "Menyimpan..."; btn.disabled = true;
+
+        google.script.run.withSuccessHandler((res) => {
+            btn.innerText = "KIRIM SETORAN"; btn.disabled = false;
+            if(res.status === 'success'){
+                closeModal('modal-cash-drop');
+                document.getElementById('inp-drop-nominal').value = '';
+                document.getElementById('inp-drop-ket').value = '';
+                Swal.fire('Sukses', 'Cash Drop Tercatat', 'success');
+            } else {
+                Swal.fire('Gagal', res.message, 'error');
+            }
+        }).doCashDrop(USER_TOKEN, nominal, ket, tujuan);
+    }
+
+    // Logic Tutup Shift
+    function setupDenominationInputs() {
+        const container = document.getElementById('denomination-list');
+        if(!container) return;
+        container.innerHTML = '';
+        DENOMINATIONS.forEach(denom => {
+            container.innerHTML += `
+                <div class="flex items-center gap-3 bg-slate-50 p-2 rounded border border-slate-200">
+                    <div class="w-24 text-right font-bold text-slate-600 text-sm">${formatRupiah(denom)}</div>
+                    <div class="text-xs text-slate-400">x</div>
+                    <input type="number" min="0" data-denom="${denom}" class="denom-input flex-1 bg-white border rounded px-2 py-1 text-right font-bold text-indigo-600 focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="0" oninput="calcClosingTotal()">
+                </div>`;
+        });
+    }
+
+    function calcClosingTotal() {
+        let total = 0;
+        document.querySelectorAll('.denom-input').forEach(inp => {
+            total += (Number(inp.value) * Number(inp.getAttribute('data-denom')));
+        });
+        document.getElementById('display-total-fisik').innerText = formatRupiah(total);
+        return total;
+    }
+
+    function submitCloseShift() {
+        const totalFisik = calcClosingTotal();
+        const actionEl = document.querySelector('input[name="closing_action"]:checked');
+        const action = actionEl ? actionEl.value : 'KEEP';
+
+        Swal.fire({
+            title: 'Konfirmasi Tutup',
+            text: `Total Fisik: ${formatRupiah(totalFisik)}. Yakin?`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, Tutup Shift',
+            confirmButtonColor: '#d33'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                const btn = document.getElementById('btn-submit-close');
+                btn.innerText = "Proses..."; btn.disabled = true;
+
+                google.script.run.withSuccessHandler((res) => {
+                    btn.innerText = "SIMPAN & TUTUP"; btn.disabled = false;
+                    if(res.status === 'success'){
+                        closeModal('modal-tutup-shift');
+                        renderShiftWidget(); // Refresh agar jadi CLOSED
+                        // Reset Form
+                        document.querySelectorAll('.denom-input').forEach(i => i.value = '');
+                        calcClosingTotal();
+                        Swal.fire('Selesai', res.message, 'success');
+                    } else {
+                        Swal.fire('Gagal', res.message, 'error');
+                    }
+                }).doCloseShift(USER_TOKEN, totalFisik, "{}", action);
+            }
+        });
+    }
+
+    // Logic Opname
+    function openOpnameModal() {
+        openModal('modal-opname');
+        document.getElementById('opname-table-body').innerHTML = '<tr><td colspan="2" class="p-4 text-center text-slate-400 text-xs">Klik tombol Load Data untuk memulai...</td></tr>';
+    }
+
+    function loadOpnameData() {
+        const kat = document.getElementById('opname-kategori').value;
+        const loader = document.getElementById('opname-loader');
+        const content = document.getElementById('opname-content');
+        const tbody = document.getElementById('opname-table-body');
+
+        loader.classList.remove('hidden');
+        content.classList.add('hidden');
+
+        google.script.run.withSuccessHandler((res) => {
+            loader.classList.add('hidden');
+            content.classList.remove('hidden');
+            
+            if(res.status === 'success'){
+                tbody.innerHTML = '';
+                res.data.forEach(item => {
+                    tbody.innerHTML += `
+                        <tr class="hover:bg-slate-50 border-b last:border-0">
+                            <td class="p-3">
+                                <div class="font-bold text-slate-700 text-sm">${item.nama}</div>
+                                <div class="text-[10px] text-slate-400 font-mono">Stok Sistem: ${item.stok_sistem} ${item.satuan || ''}</div>
+                            </td>
+                            <td class="p-3 text-right">
+                                <input type="number" data-kode="${item.kode}" data-nama="${item.nama}" class="opname-input w-20 border border-slate-300 rounded px-2 py-1 text-center font-bold text-blue-600 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="0">
+                            </td>
+                        </tr>`;
+                });
+            } else {
+                tbody.innerHTML = `<tr><td colspan="2" class="p-4 text-center text-red-500 font-bold">${res.message}</td></tr>`;
+            }
+        }).getOpnameData(USER_TOKEN, kat);
+    }
+
+    function submitOpnameData() {
+        const data = [];
+        document.querySelectorAll('.opname-input').forEach(inp => {
+            if(inp.value !== '') {
+                data.push({
+                    kode: inp.getAttribute('data-kode'),
+                    nama: inp.getAttribute('data-nama'),
+                    fisik_qty: Number(inp.value)
+                });
+            }
+        });
+
+        if(data.length === 0) return Swal.fire('Info', 'Isi jumlah fisik minimal satu barang.', 'info');
+
+        const btn = document.getElementById('btn-submit-opname');
+        btn.innerText = "Menyimpan..."; btn.disabled = true;
+
+        google.script.run.withSuccessHandler((res) => {
+            btn.innerText = "SIMPAN OPNAME"; btn.disabled = false;
+            if(res.status === 'success'){
+                closeModal('modal-opname');
+                Swal.fire('Sukses', 'Stok Opname Berhasil Diupdate!', 'success');
+            } else {
+                Swal.fire('Gagal', res.message, 'error');
+            }
+        }).submitOpname(USER_TOKEN, data);
+    }
+</script>
