@@ -42,6 +42,8 @@
             <div class="h-10 bg-slate-200 rounded w-full"></div>
         </div>
 
+        <div id="widget-error" class="hidden text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg p-3"></div>
+
         <div id="widget-closed" class="hidden flex flex-col items-center justify-center h-full text-center gap-4">
             <div class="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mb-2">
                 <span class="material-icons-round text-3xl">storefront</span>
@@ -234,6 +236,7 @@
     // --- 1. DETEKSI TOKEN & USER OTOMATIS ---
     let detectedToken = '';
     let currentUserInfo = {};
+    const ALLOWED_SHIFT_ROLES = ['admin', 'kasir', 'owner', 'supervisor'];
 
     // Ambil Sesi
     const sessionRaw = localStorage.getItem('UNGU_SESSION');
@@ -257,10 +260,22 @@
 
     // --- INIT ---
     document.addEventListener('DOMContentLoaded', () => {
-        if(USER_TOKEN) {
-            renderShiftWidget();
-            setupDenominationInputs();
+        if (!USER_TOKEN) return;
+
+        const role = (currentUserInfo.role || '').toString().toLowerCase();
+        if (role && !ALLOWED_SHIFT_ROLES.some(r => role.indexOf(r) !== -1)) {
+            const errorEl = document.getElementById('widget-error');
+            const loadingEl = document.getElementById('widget-loading');
+            if (loadingEl) loadingEl.classList.add('hidden');
+            if (errorEl) {
+                errorEl.textContent = 'Akses ditolak: role tidak diizinkan membuka shift.';
+                errorEl.classList.remove('hidden');
+            }
+            return;
         }
+
+        renderShiftWidget();
+        setupDenominationInputs();
     });
 
     // --- 2. FUNGSI UTAMA WIDGET (ANTI-BLANK) ---
@@ -270,11 +285,13 @@
         const openEl = document.getElementById('widget-open');
         const closedEl = document.getElementById('widget-closed');
         const infoEl = document.getElementById('shift-user-info');
+        const errorEl = document.getElementById('widget-error');
 
         // 1. Reset ke kondisi Loading (Sembunyikan isi dulu)
         if(loadingEl) loadingEl.classList.remove('hidden');
         if(openEl) openEl.classList.add('hidden');
         if(closedEl) closedEl.classList.add('hidden');
+        if(errorEl) { errorEl.classList.add('hidden'); errorEl.textContent = ''; }
 
         // 2. Panggil Server
         google.script.run
@@ -288,7 +305,7 @@
                     if(openEl) openEl.classList.remove('hidden');
                     
                     // Update Info User
-                    if(infoEl) infoEl.innerText = `${res.data.username} | ${res.data.active_branch}`;
+                    if(infoEl) infoEl.textContent = `${res.data.username} | ${res.data.active_branch}`;
                     
                     // Simpan state lokal
                     localStorage.setItem('shift_status', 'OPEN');
@@ -310,6 +327,10 @@
                 if(loadingEl) loadingEl.classList.add('hidden');
                 // Tetap tampilkan menu 'TUTUP' agar user bisa mencoba lagi
                 if(closedEl) closedEl.classList.remove('hidden');
+                if(errorEl) {
+                    errorEl.textContent = 'Gagal memuat status shift. Periksa koneksi lalu coba lagi.';
+                    errorEl.classList.remove('hidden');
+                }
             })
             .checkUserShiftStatus(USER_TOKEN);
     }
@@ -321,6 +342,20 @@
     function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
     function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
 
+    function setButtonState(btn, isLoading, defaultText, loadingText) {
+        if (!btn) return;
+        btn.disabled = isLoading;
+        if (loadingText) {
+            btn.textContent = isLoading ? loadingText : defaultText;
+        } else if (defaultText) {
+            btn.textContent = defaultText;
+        }
+    }
+
+    function showServerError(message) {
+        Swal.fire('Gagal', message || 'Terjadi kesalahan server.', 'error');
+    }
+
     // --- 3. LOGIKA TOMBOL ---
 
     function submitOpenShift() {
@@ -329,18 +364,25 @@
         if (modalAwal === '') modalAwal = 0;
 
         const btn = document.getElementById('btn-submit-open');
-        btn.innerText = "Memproses..."; btn.disabled = true;
+        setButtonState(btn, true, 'MULAI SHIFT', 'Memproses...');
 
-        google.script.run.withSuccessHandler((res) => {
-            btn.innerText = "MULAI SHIFT"; btn.disabled = false;
-            if (res.status === 'success') {
-                closeModal('modal-buka-shift');
-                renderShiftWidget(); // Refresh agar jadi OPEN
-                Swal.fire({title:'Berhasil', text:'Shift Dibuka', icon:'success', timer:1500, showConfirmButton:false});
-            } else {
-                Swal.fire('Gagal', res.message, 'error');
-            }
-        }).doOpenShift(USER_TOKEN, modalAwal, cabang);
+        google.script.run
+            .withSuccessHandler((res) => {
+                setButtonState(btn, false, 'MULAI SHIFT');
+                if (res.status === 'success') {
+                    closeModal('modal-buka-shift');
+                    renderShiftWidget(); // Refresh agar jadi OPEN
+                    Swal.fire({title:'Berhasil', text:'Shift Dibuka', icon:'success', timer:1500, showConfirmButton:false});
+                } else {
+                    Swal.fire('Gagal', res.message, 'error');
+                }
+            })
+            .withFailureHandler((err) => {
+                console.error('doOpenShift error', err);
+                setButtonState(btn, false, 'MULAI SHIFT');
+                showServerError(err && err.message);
+            })
+            .doOpenShift(USER_TOKEN, modalAwal, cabang);
     }
 
     function submitCashDrop() {
@@ -351,19 +393,26 @@
         if(!nominal) return Swal.fire('Eits', 'Isi nominal dulu', 'warning');
 
         const btn = document.getElementById('btn-submit-drop');
-        btn.innerText = "Menyimpan..."; btn.disabled = true;
+        setButtonState(btn, true, 'KIRIM SETORAN', 'Menyimpan...');
 
-        google.script.run.withSuccessHandler((res) => {
-            btn.innerText = "KIRIM SETORAN"; btn.disabled = false;
-            if(res.status === 'success'){
-                closeModal('modal-cash-drop');
-                document.getElementById('inp-drop-nominal').value = '';
-                document.getElementById('inp-drop-ket').value = '';
-                Swal.fire('Sukses', 'Cash Drop Tercatat', 'success');
-            } else {
-                Swal.fire('Gagal', res.message, 'error');
-            }
-        }).doCashDrop(USER_TOKEN, nominal, ket, tujuan);
+        google.script.run
+            .withSuccessHandler((res) => {
+                setButtonState(btn, false, 'KIRIM SETORAN');
+                if(res.status === 'success'){
+                    closeModal('modal-cash-drop');
+                    document.getElementById('inp-drop-nominal').value = '';
+                    document.getElementById('inp-drop-ket').value = '';
+                    Swal.fire('Sukses', 'Cash Drop Tercatat', 'success');
+                } else {
+                    Swal.fire('Gagal', res.message, 'error');
+                }
+            })
+            .withFailureHandler((err) => {
+                console.error('doCashDrop error', err);
+                setButtonState(btn, false, 'KIRIM SETORAN');
+                showServerError(err && err.message);
+            })
+            .doCashDrop(USER_TOKEN, nominal, ket, tujuan);
     }
 
     // Logic Tutup Shift
@@ -405,21 +454,28 @@
         }).then((result) => {
             if (result.isConfirmed) {
                 const btn = document.getElementById('btn-submit-close');
-                btn.innerText = "Proses..."; btn.disabled = true;
+                setButtonState(btn, true, 'SIMPAN & TUTUP', 'Proses...');
 
-                google.script.run.withSuccessHandler((res) => {
-                    btn.innerText = "SIMPAN & TUTUP"; btn.disabled = false;
-                    if(res.status === 'success'){
-                        closeModal('modal-tutup-shift');
-                        renderShiftWidget(); // Refresh agar jadi CLOSED
-                        // Reset Form
-                        document.querySelectorAll('.denom-input').forEach(i => i.value = '');
-                        calcClosingTotal();
-                        Swal.fire('Selesai', res.message, 'success');
-                    } else {
-                        Swal.fire('Gagal', res.message, 'error');
-                    }
-                }).doCloseShift(USER_TOKEN, totalFisik, "{}", action);
+                google.script.run
+                    .withSuccessHandler((res) => {
+                        setButtonState(btn, false, 'SIMPAN & TUTUP');
+                        if(res.status === 'success'){
+                            closeModal('modal-tutup-shift');
+                            renderShiftWidget(); // Refresh agar jadi CLOSED
+                            // Reset Form
+                            document.querySelectorAll('.denom-input').forEach(i => i.value = '');
+                            calcClosingTotal();
+                            Swal.fire('Selesai', res.message, 'success');
+                        } else {
+                            Swal.fire('Gagal', res.message, 'error');
+                        }
+                    })
+                    .withFailureHandler((err) => {
+                        console.error('doCloseShift error', err);
+                        setButtonState(btn, false, 'SIMPAN & TUTUP');
+                        showServerError(err && err.message);
+                    })
+                    .doCloseShift(USER_TOKEN, totalFisik, "{}", action);
             }
         });
     }
@@ -439,28 +495,71 @@
         loader.classList.remove('hidden');
         content.classList.add('hidden');
 
-        google.script.run.withSuccessHandler((res) => {
-            loader.classList.add('hidden');
-            content.classList.remove('hidden');
-            
-            if(res.status === 'success'){
+        google.script.run
+            .withSuccessHandler((res) => {
+                loader.classList.add('hidden');
+                content.classList.remove('hidden');
+
                 tbody.innerHTML = '';
-                res.data.forEach(item => {
-                    tbody.innerHTML += `
-                        <tr class="hover:bg-slate-50 border-b last:border-0">
-                            <td class="p-3">
-                                <div class="font-bold text-slate-700 text-sm">${item.nama}</div>
-                                <div class="text-[10px] text-slate-400 font-mono">Stok Sistem: ${item.stok_sistem} ${item.satuan || ''}</div>
-                            </td>
-                            <td class="p-3 text-right">
-                                <input type="number" data-kode="${item.kode}" data-nama="${item.nama}" class="opname-input w-20 border border-slate-300 rounded px-2 py-1 text-center font-bold text-blue-600 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="0">
-                            </td>
-                        </tr>`;
-                });
-            } else {
-                tbody.innerHTML = `<tr><td colspan="2" class="p-4 text-center text-red-500 font-bold">${res.message}</td></tr>`;
-            }
-        }).getOpnameData(USER_TOKEN, kat);
+                if(res.status === 'success'){
+                    res.data.forEach(item => {
+                        const tr = document.createElement('tr');
+                        tr.className = 'hover:bg-slate-50 border-b last:border-0';
+
+                        const tdNama = document.createElement('td');
+                        tdNama.className = 'p-3';
+
+                        const namaDiv = document.createElement('div');
+                        namaDiv.className = 'font-bold text-slate-700 text-sm';
+                        namaDiv.textContent = item.nama;
+
+                        const stokDiv = document.createElement('div');
+                        stokDiv.className = 'text-[10px] text-slate-400 font-mono';
+                        stokDiv.textContent = `Stok Sistem: ${item.stok_sistem} ${item.satuan || ''}`;
+
+                        tdNama.appendChild(namaDiv);
+                        tdNama.appendChild(stokDiv);
+
+                        const tdInput = document.createElement('td');
+                        tdInput.className = 'p-3 text-right';
+
+                        const input = document.createElement('input');
+                        input.type = 'number';
+                        input.setAttribute('data-kode', item.kode);
+                        input.setAttribute('data-nama', item.nama);
+                        input.className = 'opname-input w-20border border-slate-300 rounded px-2 py-1 text-center font-bold text-blue-600 focus:ring-2 focus:ring-blue-500 outline-none';
+                        input.placeholder = '0';
+
+                        tdInput.appendChild(input);
+
+                        tr.appendChild(tdNama);
+                        tr.appendChild(tdInput);
+                        tbody.appendChild(tr);
+                    });
+                } else {
+                    const tr = document.createElement('tr');
+                    const td = document.createElement('td');
+                    td.colSpan = 2;
+                    td.className = 'p-4 text-center text-red-500 font-bold';
+                    td.textContent = res.message;
+                    tr.appendChild(td);
+                    tbody.appendChild(tr);
+                }
+            })
+            .withFailureHandler((err) => {
+                loader.classList.add('hidden');
+                content.classList.remove('hidden');
+                tbody.innerHTML = '';
+                const tr = document.createElement('tr');
+                const td = document.createElement('td');
+                td.colSpan = 2;
+                td.className = 'p-4 text-center text-red-500 font-bold';
+                td.textContent = 'Gagal memuat data opname. Coba lagi.';
+                tr.appendChild(td);
+                tbody.appendChild(tr);
+                console.error('getOpnameData error', err);
+            })
+            .getOpnameData(USER_TOKEN, kat);
     }
 
     function submitOpnameData() {
@@ -478,16 +577,23 @@
         if(data.length === 0) return Swal.fire('Info', 'Isi jumlah fisik minimal satu barang.', 'info');
 
         const btn = document.getElementById('btn-submit-opname');
-        btn.innerText = "Menyimpan..."; btn.disabled = true;
+        setButtonState(btn, true, 'SIMPAN OPNAME', 'Menyimpan...');
 
-        google.script.run.withSuccessHandler((res) => {
-            btn.innerText = "SIMPAN OPNAME"; btn.disabled = false;
-            if(res.status === 'success'){
-                closeModal('modal-opname');
-                Swal.fire('Sukses', 'Stok Opname Berhasil Diupdate!', 'success');
-            } else {
-                Swal.fire('Gagal', res.message, 'error');
-            }
-        }).submitOpname(USER_TOKEN, data);
+        google.script.run
+            .withSuccessHandler((res) => {
+                setButtonState(btn, false, 'SIMPAN OPNAME');
+                if(res.status === 'success'){
+                    closeModal('modal-opname');
+                    Swal.fire('Sukses', 'Stok Opname Berhasil Diupdate!', 'success');
+                } else {
+                    Swal.fire('Gagal', res.message, 'error');
+                }
+            })
+            .withFailureHandler((err) => {
+                console.error('submitOpname error', err);
+                setButtonState(btn, false, 'SIMPAN OPNAME');
+                showServerError(err && err.message);
+            })
+            .submitOpname(USER_TOKEN, data);
     }
 </script>
